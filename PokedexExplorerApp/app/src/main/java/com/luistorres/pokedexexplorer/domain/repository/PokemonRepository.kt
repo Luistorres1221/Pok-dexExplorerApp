@@ -9,4 +9,5 @@ interface PokemonRepository {
     suspend fun getPokemonByNameOrId(query: String): Pokemon
     suspend fun getPokemonByType(type: String, limit: Int = 40): List<Pokemon>
     suspend fun getPokemonSpeciesFlags(id: Int): Pair<Boolean, Boolean>
+    suspend fun getPokemonAbilityNamesInSpanish(abilities: List<String>): List<String>
 }

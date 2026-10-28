@@ -45,3 +45,6 @@ data class PokemonSpeciesDto(
     @SerializedName("capture_rate") val captureRate: Int,
     @SerializedName("base_happiness") val baseHappiness: Int?
 )
+
+data class PokemonAbilityDto(val names: List<LocalizedName>)
+data class LocalizedName(val name: String, val language: NamedResource)

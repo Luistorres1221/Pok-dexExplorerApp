@@ -104,7 +104,16 @@ class PokemonViewModel(application: Application) : AndroidViewModel(application)
             _uiState.value = _uiState.value.copy(isDetailLoading = true, selectedPokemon = pokemon)
             try {
                 val species = repository.getPokemonSpeciesFlags(pokemon.id)
-                _uiState.value = _uiState.value.copy(selectedPokemon = pokemon.copy(isLegendary = species.first, isMythical = species.second), isDetailLoading = false)
+                val abilities = runCatching { repository.getPokemonAbilityNamesInSpanish(pokemon.abilities) }
+                    .getOrDefault(pokemon.abilities)
+                _uiState.value = _uiState.value.copy(
+                    selectedPokemon = pokemon.copy(
+                        isLegendary = species.first,
+                        isMythical = species.second,
+                        abilities = abilities
+                    ),
+                    isDetailLoading = false
+                )
             } catch (_: Exception) {
                 _uiState.value = _uiState.value.copy(isDetailLoading = false)
             }

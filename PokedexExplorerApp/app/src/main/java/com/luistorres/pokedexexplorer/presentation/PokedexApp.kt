@@ -45,6 +45,19 @@ private val TypeColors = mapOf(
     "dark" to Color(0xFF69636C), "steel" to Color(0xFF8B9AA8), "flying" to Color(0xFF8CACE8)
 )
 private val Types = listOf("all", "grass", "fire", "water", "electric", "bug", "normal", "poison", "fairy", "dragon")
+private val SpanishTypes = mapOf(
+    "grass" to "Planta", "fire" to "Fuego", "water" to "Agua", "electric" to "Eléctrico",
+    "bug" to "Bicho", "normal" to "Normal", "poison" to "Veneno", "fairy" to "Hada",
+    "dragon" to "Dragón", "fighting" to "Lucha", "psychic" to "Psíquico", "rock" to "Roca",
+    "ghost" to "Fantasma", "ice" to "Hielo", "dark" to "Siniestro", "steel" to "Acero",
+    "flying" to "Volador", "ground" to "Tierra"
+)
+private val SpanishStats = mapOf(
+    "hp" to "PS", "attack" to "Ataque", "defense" to "Defensa",
+    "special attack" to "Ataque especial", "special defense" to "Defensa especial", "speed" to "Velocidad"
+)
+private fun typeName(type: String) = SpanishTypes[type] ?: type.replaceFirstChar { it.titlecase(Locale.ROOT) }
+private fun statName(stat: String) = SpanishStats[stat] ?: stat.replace('-', ' ').replaceFirstChar { it.titlecase(Locale.ROOT) }
 
 @Composable
 fun PokedexApp(vm: PokemonViewModel = viewModel()) {
@@ -87,13 +100,13 @@ fun PokedexApp(vm: PokemonViewModel = viewModel()) {
                         FilterChip(
                             selected = selected,
                             onClick = { vm.filterByType(if (type == "all") null else type) },
-                            label = { Text(if (type == "all") "Todos" else type.replaceFirstChar { it.titlecase(Locale.ROOT) }) }
+                            label = { Text(if (type == "all") "Todos" else typeName(type)) }
                         )
                     }
                 }
                 Spacer(Modifier.height(12.dp))
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                    Text(if (state.selectedType != null) "Tipo: ${state.selectedType}" else "Pokédex", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold, color = Ink)
+                    Text(state.selectedType?.let { "Tipo: ${typeName(it)}" } ?: "Pokédex", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold, color = Ink)
                     Spacer(Modifier.weight(1f))
                     Text("${displayedPokemon.size} resultados", style = MaterialTheme.typography.labelMedium, color = Color.Gray)
                 }
@@ -135,7 +148,7 @@ private fun Header(isOnline: Boolean) {
             Row(Modifier.padding(horizontal = 9.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                 Icon(if (isOnline) Icons.Default.Wifi else Icons.Default.WifiOff, contentDescription = null, modifier = Modifier.size(14.dp), tint = if (isOnline) Color(0xFF176B36) else Color(0xFF9F2020))
                 Spacer(Modifier.width(4.dp))
-                Text(if (isOnline) "Online" else "Offline", style = MaterialTheme.typography.labelSmall, color = if (isOnline) Color(0xFF176B36) else Color(0xFF9F2020), fontWeight = FontWeight.Bold)
+                Text(if (isOnline) "En línea" else "Sin conexión", style = MaterialTheme.typography.labelSmall, color = if (isOnline) Color(0xFF176B36) else Color(0xFF9F2020), fontWeight = FontWeight.Bold)
             }
         }
     }
@@ -160,7 +173,7 @@ private fun PokemonCard(pokemon: Pokemon, onClick: () -> Unit) {
             Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                 pokemon.types.take(2).forEach { type ->
                     Surface(color = (TypeColors[type] ?: Color.Gray).copy(alpha = .17f), shape = RoundedCornerShape(7.dp)) {
-                        Text(type.replaceFirstChar { it.titlecase(Locale.ROOT) }, modifier = Modifier.padding(horizontal = 7.dp, vertical = 4.dp), color = TypeColors[type] ?: Color.DarkGray, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                        Text(typeName(type), modifier = Modifier.padding(horizontal = 7.dp, vertical = 4.dp), color = TypeColors[type] ?: Color.DarkGray, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -193,7 +206,7 @@ private fun PokemonDetailDialog(pokemon: Pokemon, loadingSpecies: Boolean, onClo
                 }
                 Spacer(Modifier.height(12.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    pokemon.types.forEach { Surface(color = (TypeColors[it] ?: Color.Gray).copy(alpha = .18f), shape = RoundedCornerShape(8.dp)) { Text(it.replaceFirstChar { c -> c.titlecase(Locale.ROOT) }, Modifier.padding(horizontal = 9.dp, vertical = 5.dp), fontWeight = FontWeight.Bold) } }
+                    pokemon.types.forEach { Surface(color = (TypeColors[it] ?: Color.Gray).copy(alpha = .18f), shape = RoundedCornerShape(8.dp)) { Text(typeName(it), Modifier.padding(horizontal = 9.dp, vertical = 5.dp), fontWeight = FontWeight.Bold) } }
                 }
                 Spacer(Modifier.height(12.dp))
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
@@ -208,7 +221,7 @@ private fun PokemonDetailDialog(pokemon: Pokemon, loadingSpecies: Boolean, onClo
                 pokemon.stats.forEach { stat ->
                     Column(Modifier.fillMaxWidth().padding(top = 7.dp)) {
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text(stat.name.replaceFirstChar { it.titlecase(Locale.ROOT) }, style = MaterialTheme.typography.bodySmall)
+                            Text(statName(stat.name), style = MaterialTheme.typography.bodySmall)
                             Text(stat.value.toString(), style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
                         }
                         LinearProgressIndicator(progress = { (stat.value / 180f).coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth().height(6.dp).clip(CircleShape), color = PokeballRed, trackColor = Color.LightGray.copy(alpha = .35f))

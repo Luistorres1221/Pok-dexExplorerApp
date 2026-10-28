@@ -19,4 +19,7 @@ interface PokeApiService {
 
     @GET("pokemon-species/{id}")
     suspend fun getSpecies(@Path("id") id: Int): PokemonSpeciesDto
+
+    @GET("ability/{name}")
+    suspend fun getAbility(@Path("name") name: String): PokemonAbilityDto
 }

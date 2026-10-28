@@ -30,6 +30,16 @@ class PokemonRepositoryImpl(private val api: PokeApiService) : PokemonRepository
         return species.isLegendary to species.isMythical
     }
 
+    override suspend fun getPokemonAbilityNamesInSpanish(abilities: List<String>): List<String> = coroutineScope {
+        abilities.map { ability ->
+            async {
+                runCatching {
+                    api.getAbility(ability).names.firstOrNull { it.language.name == "es" }?.name
+                }.getOrNull() ?: "Traducción no disponible"
+            }
+        }.awaitAll()
+    }
+
     override suspend fun getPokemonByType(type: String, limit: Int): List<Pokemon> {
         val response = api.getPokemonByType(type.lowercase())
         return coroutineScope {
@@ -47,7 +57,7 @@ class PokemonRepositoryImpl(private val api: PokeApiService) : PokemonRepository
             height = dto.height,
             weight = dto.weight,
             types = dto.types.map { it.type.name },
-            abilities = dto.abilities.map { it.ability.name.replace('-', ' ') },
+            abilities = dto.abilities.map { it.ability.name },
             stats = dto.stats.map { PokemonStat(it.stat.name.replace('-', ' '), it.base_stat) }
         )
     }
