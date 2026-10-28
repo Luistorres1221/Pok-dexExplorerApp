@@ -112,7 +112,12 @@ fun PokedexApp(vm: PokemonViewModel = viewModel()) {
                 }
                 Spacer(Modifier.height(8.dp))
                 when {
-                    state.isLoading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = PokeballRed) }
+                    state.isLoading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            CircularProgressIndicator(color = PokeballRed)
+                            Text("Cargando Pokémon…", color = Color.Gray)
+                        }
+                    }
                     state.error != null && state.pokemon.isEmpty() -> ErrorPanel(state.error!!, onRetry = { if (state.selectedType != null) vm.filterByType(state.selectedType) else if (state.searchText.isNotBlank()) vm.searchExact() else vm.loadFirstPage() })
                     displayedPokemon.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("No se encontraron Pokémon.", color = Color.Gray) }
                     else -> LazyVerticalGrid(
