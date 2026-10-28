@@ -3,6 +3,7 @@ package com.luistorres.pokedexexplorer.data.repository
 import com.luistorres.pokedexexplorer.data.remote.PokeApiService
 import com.luistorres.pokedexexplorer.data.remote.PokemonDto
 import com.luistorres.pokedexexplorer.domain.model.Pokemon
+import com.luistorres.pokedexexplorer.domain.model.PokemonSpeciesDetails
 import com.luistorres.pokedexexplorer.domain.model.PokemonStat
 import com.luistorres.pokedexexplorer.domain.repository.PokemonPage
 import com.luistorres.pokedexexplorer.domain.repository.PokemonRepository
@@ -25,9 +26,14 @@ class PokemonRepositoryImpl(private val api: PokeApiService) : PokemonRepository
         return mapPokemon(api.getPokemon(normalized))
     }
 
-    override suspend fun getPokemonSpeciesFlags(id: Int): Pair<Boolean, Boolean> {
+    override suspend fun getPokemonSpeciesDetails(id: Int): PokemonSpeciesDetails {
         val species = api.getSpecies(id)
-        return species.isLegendary to species.isMythical
+        val description = species.flavorTextEntries
+            .firstOrNull { it.language.name == "es" }
+            ?.flavorText
+            ?.replace(Regex("\\s+"), " ")
+            ?.trim()
+        return PokemonSpeciesDetails(species.isLegendary, species.isMythical, description)
     }
 
     override suspend fun getPokemonAbilityNamesInSpanish(abilities: List<String>): List<String> = coroutineScope {

@@ -43,7 +43,13 @@ data class PokemonSpeciesDto(
     @SerializedName("is_legendary") val isLegendary: Boolean,
     @SerializedName("is_mythical") val isMythical: Boolean,
     @SerializedName("capture_rate") val captureRate: Int,
-    @SerializedName("base_happiness") val baseHappiness: Int?
+    @SerializedName("base_happiness") val baseHappiness: Int?,
+    @SerializedName("flavor_text_entries") val flavorTextEntries: List<PokemonFlavorTextEntry> = emptyList()
+)
+
+data class PokemonFlavorTextEntry(
+    @SerializedName("flavor_text") val flavorText: String,
+    val language: NamedResource
 )
 
 data class PokemonAbilityDto(val names: List<LocalizedName>)

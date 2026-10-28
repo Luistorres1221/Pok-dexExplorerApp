@@ -103,14 +103,15 @@ class PokemonViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isDetailLoading = true, selectedPokemon = pokemon)
             try {
-                val species = repository.getPokemonSpeciesFlags(pokemon.id)
+                val species = repository.getPokemonSpeciesDetails(pokemon.id)
                 val abilities = runCatching { repository.getPokemonAbilityNamesInSpanish(pokemon.abilities) }
                     .getOrDefault(pokemon.abilities)
                 _uiState.value = _uiState.value.copy(
                     selectedPokemon = pokemon.copy(
-                        isLegendary = species.first,
-                        isMythical = species.second,
-                        abilities = abilities
+                        isLegendary = species.isLegendary,
+                        isMythical = species.isMythical,
+                        abilities = abilities,
+                        description = species.description
                     ),
                     isDetailLoading = false
                 )

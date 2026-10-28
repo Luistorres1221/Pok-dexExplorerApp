@@ -10,7 +10,14 @@ data class Pokemon(
     val abilities: List<String>,
     val stats: List<PokemonStat>,
     val isLegendary: Boolean = false,
-    val isMythical: Boolean = false
+    val isMythical: Boolean = false,
+    val description: String? = null
 )
 
 data class PokemonStat(val name: String, val value: Int)
+
+data class PokemonSpeciesDetails(
+    val isLegendary: Boolean,
+    val isMythical: Boolean,
+    val description: String?
+)

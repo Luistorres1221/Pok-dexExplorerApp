@@ -9,7 +9,7 @@ Aplicación Android para explorar Pokémon, buscar por nombre o número y consul
 - Catálogo paginado con carga de más Pokémon al desplazarse.
 - Búsqueda exacta por nombre o número de Pokédex.
 - Filtros por tipo.
-- Ficha con ilustración, tipos, altura, peso, habilidades y estadísticas base.
+- Ficha con descripción en español, ilustración, tipos, altura, peso, habilidades y estadísticas base.
 - Indicadores para Pokémon legendarios y míticos.
 - Estado de conexión, indicador de carga y mensajes de error en español.
 - Traducción al español de los nombres de tipos, estadísticas y habilidades cuando PokéAPI ofrece esa traducción.
@@ -67,7 +67,7 @@ La aplicación utiliza la base URL `https://pokeapi.co/api/v2/` y estos recursos
 | `GET` | `/pokemon?limit=24&offset={offset}` | Listado y paginación |
 | `GET` | `/pokemon/{nameOrId}` | Datos del Pokémon y búsqueda exacta |
 | `GET` | `/type/{type}` | Pokémon de un tipo seleccionado |
-| `GET` | `/pokemon-species/{id}` | Identificar Pokémon legendarios y míticos |
+| `GET` | `/pokemon-species/{id}` | Descripción en español y datos de especie (legendario/mítico) |
 | `GET` | `/ability/{name}` | Nombre de la habilidad en español |
 
 No requiere cuenta, clave de API, servidor propio ni base de datos externa.

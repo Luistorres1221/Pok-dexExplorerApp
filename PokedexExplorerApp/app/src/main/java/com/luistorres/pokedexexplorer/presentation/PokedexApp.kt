@@ -214,6 +214,13 @@ private fun PokemonDetailDialog(pokemon: Pokemon, loadingSpecies: Boolean, onClo
                     pokemon.types.forEach { Surface(color = (TypeColors[it] ?: Color.Gray).copy(alpha = .18f), shape = RoundedCornerShape(8.dp)) { Text(typeName(it), Modifier.padding(horizontal = 9.dp, vertical = 5.dp), fontWeight = FontWeight.Bold) } }
                 }
                 Spacer(Modifier.height(12.dp))
+                Text("Descripción", modifier = Modifier.fillMaxWidth(), fontWeight = FontWeight.Bold, color = Ink)
+                Text(
+                    pokemon.description ?: if (loadingSpecies) "Cargando descripción…" else "Descripción en español no disponible.",
+                    modifier = Modifier.fillMaxWidth(),
+                    color = Color.DarkGray
+                )
+                Spacer(Modifier.height(12.dp))
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
                     DetailMetric("Altura", "${pokemon.height / 10.0} m")
                     DetailMetric("Peso", "${pokemon.weight / 10.0} kg")
