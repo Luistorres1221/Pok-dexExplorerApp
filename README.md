@@ -1,94 +1,65 @@
 # Explorador Pokédex
 
-Aplicación Android para explorar Pokémon, buscar por nombre o número y consultar información detallada. La interfaz está en español y obtiene los datos de la API pública [PokéAPI](https://pokeapi.co/).
-
-[Repositorio en GitHub](https://github.com/Luistorres1221/Pok-dexExplorerApp)
+Aplicación Android desarrollada con Kotlin y Jetpack Compose para explorar Pokémon mediante la API pública [PokéAPI](https://pokeapi.co/). La interfaz está en español.
 
 ## Funcionalidades
 
-- Catálogo paginado con carga de más Pokémon al desplazarse.
-- Búsqueda exacta por nombre o número de Pokédex.
-- Filtros por tipo.
-- Ficha con descripción en español, ilustración, tipos, altura, peso, habilidades y estadísticas base.
-- Indicadores para Pokémon legendarios y míticos.
-- Estado de conexión, indicador de carga y mensajes de error en español.
-- Traducción al español de los nombres de tipos, estadísticas y habilidades cuando PokéAPI ofrece esa traducción.
+- Catálogo con paginación por desplazamiento.
+- Búsqueda dinámica por nombre o número mientras se escribe, con resultados de todo el catálogo.
+- Filtros por los 18 tipos con el total de resultados de cada tipo.
+- Ficha con descripción, ilustración, tipos, medidas, habilidades y estadísticas.
+- Indicadores de conexión y mensajes de carga o error.
+- Traducción al español de nombres de tipos, estadísticas y habilidades cuando la API ofrece esos datos.
 
-## Tecnologías
+## Tecnologías y arquitectura
 
-- Kotlin
-- Jetpack Compose y Material 3
-- Arquitectura MVVM, separada en presentación, dominio y datos
-- Retrofit y Gson para las solicitudes HTTP
-- Kotlin Coroutines para las operaciones asíncronas
-- Coil para cargar ilustraciones
-- PokéAPI como fuente de datos
+- Kotlin, Jetpack Compose y Material 3.
+- MVVM con capas de presentación, dominio y datos.
+- Retrofit y Gson para consumir PokéAPI; Coroutines para las operaciones asíncronas.
+- Coil para cargar ilustraciones.
+
+```text
+app/src/main/java/com/luistorres/pokedexexplorer/
+├── data/        # Retrofit, modelos remotos, conectividad y repositorio
+├── domain/      # Modelos de dominio y contrato del repositorio
+├── presentation/# Pantallas Compose y PokemonViewModel
+└── MainActivity.kt
+docs/            # Notas de endpoints y arquitectura
+```
 
 ## Requisitos
 
-- Android Studio con soporte para proyectos Kotlin y Jetpack Compose.
-- JDK 17.
-- Android SDK Platform 35.
+- Android Studio, JDK 17 y Android SDK Platform 35.
 - Emulador o dispositivo con Android 7.0 (API 24) o posterior.
-- Conexión a Internet para consultar PokéAPI y cargar las ilustraciones.
+- Conexión a Internet para consultar PokéAPI y cargar ilustraciones.
 
-## Abrir y ejecutar
+## Abrir y compilar
 
-1. Clona o descarga este repositorio.
-2. En Android Studio, selecciona **Open** y abre la carpeta `PokedexExplorerApp` que contiene `settings.gradle.kts`.
-3. Espera a que termine la sincronización de Gradle y permite la instalación de los componentes del SDK que Android Studio solicite.
-4. Inicia un emulador o conecta un dispositivo Android.
-5. Selecciona la configuración `app` y pulsa **Run**.
+Abre **la carpeta raíz del repositorio** en Android Studio, espera la sincronización de Gradle y ejecuta la configuración `app` en un emulador o dispositivo.
 
-La primera carga consulta PokéAPI para obtener los datos del catálogo y puede tardar unos segundos. Mientras tanto, la aplicación muestra el mensaje **Cargando Pokémon…**.
-
-## Compilar desde la terminal
-
-El repositorio no incluye Gradle Wrapper. Si Gradle está instalado y configurado en el equipo, ejecuta desde la carpeta del proyecto:
+Con Gradle instalado también puedes compilar desde la raíz:
 
 ```bash
 gradle :app:assembleDebug
 ```
 
-El APK de depuración se genera en:
+El APK de depuración queda en `app/build/outputs/apk/debug/app-debug.apk`.
 
-```text
-app/build/outputs/apk/debug/app-debug.apk
-```
+## API utilizada
 
-También puedes compilar e instalar desde Android Studio con **Run**.
+Todas las peticiones son `GET` a `https://pokeapi.co/api/v2/`:
 
-## API
+| Recurso | Uso |
+| --- | --- |
+| `/pokemon?limit=24&offset={offset}` | Catálogo y paginación |
+| `/pokemon?limit=2000&offset=0` | Índice de nombres para la búsqueda dinámica |
+| `/pokemon/{nameOrId}` | Información del Pokémon y búsqueda por identificador |
+| `/type/{type}` | Pokémon y cantidad asociados a un tipo |
+| `/pokemon-species/{id}` | Descripción y clasificación de especie |
+| `/ability/{name}` | Nombre de habilidad en español |
 
-La aplicación utiliza la base URL `https://pokeapi.co/api/v2/` y estos recursos:
+## Documentación adicional
 
-| Método | Recurso | Uso |
-| --- | --- | --- |
-| `GET` | `/pokemon?limit=24&offset={offset}` | Listado y paginación |
-| `GET` | `/pokemon/{nameOrId}` | Datos del Pokémon y búsqueda exacta |
-| `GET` | `/type/{type}` | Pokémon de un tipo seleccionado |
-| `GET` | `/pokemon-species/{id}` | Descripción en español y datos de especie (legendario/mítico) |
-| `GET` | `/ability/{name}` | Nombre de la habilidad en español |
-
-No requiere cuenta, clave de API, servidor propio ni base de datos externa.
-
-## Estructura del proyecto
-
-```text
-app/src/main/java/com/luistorres/pokedexexplorer/
-├── data/
-│   ├── network/       # Observación de conectividad
-│   ├── remote/        # Servicios Retrofit y modelos JSON
-│   └── repository/    # Consultas a PokéAPI y mapeo de datos
-├── domain/
-│   ├── model/         # Modelos de dominio
-│   └── repository/    # Contrato del repositorio
-├── presentation/     # Interfaz Compose y PokemonViewModel
-└── MainActivity.kt
-```
-
-## Referencias
-
-- [Documentación de PokéAPI](https://pokeapi.co/docs/v2)
-- [Arquitectura de apps Android](https://developer.android.com/topic/architecture)
-- [Jetpack Compose](https://developer.android.com/develop/ui/compose)
+- [Informe del proyecto](INFORME_PROYECTO.md)
+- [Informe PDF de arquitectura](INFORME_ESTRUCTURA_ARQUITECTURA.pdf)
+- [Endpoints y arquitectura](docs/ENDPOINTS_Y_ARQUITECTURA.md)

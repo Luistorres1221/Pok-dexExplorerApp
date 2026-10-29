@@ -12,6 +12,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
  data class PokemonUiState(
@@ -37,6 +39,7 @@ class PokemonViewModel(application: Application) : AndroidViewModel(application)
     private val _uiState = MutableStateFlow(PokemonUiState())
     val uiState: StateFlow<PokemonUiState> = _uiState.asStateFlow()
     private var resultsRequestVersion = 0
+    private var searchJob: Job? = null
 
     init {
         viewModelScope.launch {
@@ -60,14 +63,17 @@ class PokemonViewModel(application: Application) : AndroidViewModel(application)
 
     fun loadNextPage() {
         val state = _uiState.value
-        if (state.isLoading || state.isLoadingMore || !state.hasNext || state.searchText.isNotBlank()) return
+        if (state.isLoading || state.isLoadingMore || !state.hasNext) return
         val requestVersion = resultsRequestVersion
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoadingMore = true, error = null)
             try {
                 val currentState = _uiState.value
-                val page = currentState.selectedType?.let { repository.getPokemonByType(it, currentState.offset) }
-                    ?: repository.getPokemonPage(currentState.offset)
+                val page = when {
+                    currentState.searchText.isNotBlank() -> repository.searchPokemon(currentState.searchText, currentState.offset)
+                    currentState.selectedType != null -> repository.getPokemonByType(currentState.selectedType, currentState.offset)
+                    else -> repository.getPokemonPage(currentState.offset)
+                }
                 if (requestVersion != resultsRequestVersion) return@launch
                 val current = _uiState.value.pokemon
                 _uiState.value = _uiState.value.copy(pokemon = current + page.items, offset = currentState.offset + page.items.size, hasNext = page.hasNext, totalCount = page.totalCount, isLoadingMore = false)
@@ -79,11 +85,28 @@ class PokemonViewModel(application: Application) : AndroidViewModel(application)
 
     fun onSearchChange(value: String) {
         val previous = _uiState.value
-        _uiState.value = previous.copy(searchText = value, selectedType = null, error = null)
-        if (previous.selectedType != null || (value.isBlank() && !previous.hasNext)) loadFirstPage()
+        val requestVersion = ++resultsRequestVersion
+        searchJob?.cancel()
+        _uiState.value = previous.copy(searchText = value, selectedType = null, error = null, isLoading = value.isNotBlank(), isLoadingMore = false, offset = 0, totalCount = 0)
+        if (value.isBlank()) {
+            if (previous.searchText.isNotBlank() || previous.selectedType != null || !previous.hasNext) loadFirstPage()
+            else _uiState.value = _uiState.value.copy(isLoading = false)
+            return
+        }
+        searchJob = viewModelScope.launch {
+            delay(300)
+            searchFor(value, requestVersion)
+        }
     }
 
     fun searchExact() {
+        val currentQuery = _uiState.value.searchText
+        if (currentQuery.isNotBlank()) {
+            searchJob?.cancel()
+            val version = ++resultsRequestVersion
+            searchJob = viewModelScope.launch { searchFor(currentQuery, version) }
+            return
+        }
         val query = _uiState.value.searchText.trim()
         if (query.isEmpty()) { loadFirstPage(); return }
         val requestVersion = ++resultsRequestVersion
@@ -94,6 +117,21 @@ class PokemonViewModel(application: Application) : AndroidViewModel(application)
                 if (requestVersion == resultsRequestVersion) _uiState.value = _uiState.value.copy(pokemon = listOf(pokemon), isLoading = false, hasNext = false, totalCount = 1)
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(isLoading = false, pokemon = emptyList(), hasNext = false, error = "No se encontró ese Pokémon. Comprueba el nombre o número.")
+            }
+        }
+    }
+
+    private suspend fun searchFor(query: String, requestVersion: Int) {
+        if (requestVersion != resultsRequestVersion) return
+        _uiState.value = _uiState.value.copy(isLoading = true, isLoadingMore = false, error = null, selectedType = null)
+        try {
+            val page = repository.searchPokemon(query, 0)
+            if (requestVersion == resultsRequestVersion) {
+                _uiState.value = _uiState.value.copy(pokemon = page.items, isLoading = false, offset = page.items.size, hasNext = page.hasNext, totalCount = page.totalCount)
+            }
+        } catch (e: Exception) {
+            if (requestVersion == resultsRequestVersion) {
+                _uiState.value = _uiState.value.copy(isLoading = false, isLoadingMore = false, pokemon = emptyList(), hasNext = false, totalCount = 0, error = messageFor(e))
             }
         }
     }

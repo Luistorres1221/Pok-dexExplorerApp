@@ -11,6 +11,7 @@ data class PokemonPage(
 
 interface PokemonRepository {
     suspend fun getPokemonPage(offset: Int, limit: Int = 24): PokemonPage
+    suspend fun searchPokemon(query: String, offset: Int = 0, limit: Int = 24): PokemonPage
     suspend fun getPokemonByNameOrId(query: String): Pokemon
     suspend fun getPokemonByType(type: String, offset: Int = 0, limit: Int = 24): PokemonPage
     suspend fun getPokemonSpeciesDetails(id: Int): PokemonSpeciesDetails

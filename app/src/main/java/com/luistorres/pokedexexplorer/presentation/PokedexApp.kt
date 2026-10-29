@@ -101,7 +101,7 @@ private fun PokedexListScreen(state: PokemonUiState, vm: PokemonViewModel, onOpe
     LaunchedEffect(gridState, state.pokemon.size, state.hasNext, state.searchText, state.selectedType) {
         snapshotFlow { gridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0 }
             .collectLatest { index ->
-                if (state.searchText.isBlank() && state.hasNext && index >= state.pokemon.size - 5 && state.pokemon.isNotEmpty()) vm.loadNextPage()
+                if (state.hasNext && index >= state.pokemon.size - 5 && state.pokemon.isNotEmpty()) vm.loadNextPage()
             }
     }
     Scaffold(containerColor = SoftBackground) { padding ->
