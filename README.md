@@ -60,5 +60,4 @@ Todas las peticiones son `GET` a `https://pokeapi.co/api/v2/`:
 
 ## Documentación adicional
 
-- [Informe del proyecto](INFORME_PROYECTO.md)
 - [Endpoints y arquitectura](docs/ENDPOINTS_Y_ARQUITECTURA.md)
