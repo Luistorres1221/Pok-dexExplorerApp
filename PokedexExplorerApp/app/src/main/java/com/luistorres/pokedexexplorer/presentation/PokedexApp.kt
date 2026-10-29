@@ -12,8 +12,11 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CatchingPokemon
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material.icons.filled.WifiOff
@@ -27,7 +30,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.input.ImeAction
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavType
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import coil.compose.AsyncImage
 import com.luistorres.pokedexexplorer.domain.model.Pokemon
 import kotlinx.coroutines.flow.collectLatest
@@ -44,7 +53,7 @@ private val TypeColors = mapOf(
     "ghost" to Color(0xFF8270B8), "ice" to Color(0xFF72CFCB), "dragon" to Color(0xFF7770D8),
     "dark" to Color(0xFF69636C), "steel" to Color(0xFF8B9AA8), "flying" to Color(0xFF8CACE8)
 )
-private val Types = listOf("all", "grass", "fire", "water", "electric", "bug", "normal", "poison", "fairy", "dragon")
+private val Types = listOf("all", "grass", "fire", "water", "electric", "bug", "normal", "poison", "fairy", "dragon", "fighting", "psychic", "rock", "ghost", "ice", "dark", "steel", "flying", "ground")
 private val SpanishTypes = mapOf(
     "grass" to "Planta", "fire" to "Fuego", "water" to "Agua", "electric" to "Eléctrico",
     "bug" to "Bicho", "normal" to "Normal", "poison" to "Veneno", "fairy" to "Hada",
@@ -62,17 +71,37 @@ private fun statName(stat: String) = SpanishStats[stat] ?: stat.replace('-', ' '
 @Composable
 fun PokedexApp(vm: PokemonViewModel = viewModel()) {
     val state by vm.uiState.collectAsState()
-    val gridState = rememberLazyGridState()
-    val displayedPokemon = remember(state.pokemon, state.searchText) {
-        val query = state.searchText.trim().lowercase()
-        if (query.isBlank()) state.pokemon else state.pokemon.filter {
-            it.name.contains(query) || it.id.toString().contains(query)
+    val navController = rememberNavController()
+    NavHost(navController = navController, startDestination = "pokedex") {
+        composable("pokedex") {
+            PokedexListScreen(state, vm) { pokemon -> navController.navigate("pokemon/${pokemon.id}") }
+        }
+        composable(
+            route = "pokemon/{pokemonId}",
+            arguments = listOf(navArgument("pokemonId") { type = NavType.IntType })
+        ) { entry ->
+            val pokemonId = entry.arguments?.getInt("pokemonId") ?: return@composable
+            LaunchedEffect(pokemonId) { vm.loadPokemonDetail(pokemonId) }
+            PokemonDetailScreen(
+                pokemon = state.selectedPokemon?.takeIf { it.id == pokemonId },
+                isLoading = state.isDetailLoading,
+                error = state.detailError,
+                isOnline = state.isOnline,
+                onBack = { navController.popBackStack() },
+                onRetry = { vm.loadPokemonDetail(pokemonId, retry = true) }
+            )
         }
     }
+}
+
+@Composable
+private fun PokedexListScreen(state: PokemonUiState, vm: PokemonViewModel, onOpenPokemon: (Pokemon) -> Unit) {
+    val gridState = rememberLazyGridState()
+    val displayedPokemon = state.pokemon
     LaunchedEffect(gridState, state.pokemon.size, state.hasNext, state.searchText, state.selectedType) {
         snapshotFlow { gridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0 }
             .collectLatest { index ->
-                if (state.selectedType == null && state.searchText.isBlank() && state.hasNext && index >= state.pokemon.size - 5 && state.pokemon.isNotEmpty()) vm.loadNextPage()
+                if (state.searchText.isBlank() && state.hasNext && index >= state.pokemon.size - 5 && state.pokemon.isNotEmpty()) vm.loadNextPage()
             }
     }
     Scaffold(containerColor = SoftBackground) { padding ->
@@ -87,6 +116,8 @@ fun PokedexApp(vm: PokemonViewModel = viewModel()) {
                     placeholder = { Text("Busca por nombre o número…") },
                     leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
                     trailingIcon = { IconButton(onClick = vm::searchExact) { Icon(Icons.Default.CatchingPokemon, contentDescription = "Buscar") } },
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                    keyboardActions = KeyboardActions(onSearch = { vm.searchExact() }),
                     singleLine = true,
                     shape = RoundedCornerShape(18.dp),
                     colors = OutlinedTextFieldDefaults.colors(unfocusedContainerColor = Color.White, focusedContainerColor = Color.White)
@@ -108,7 +139,7 @@ fun PokedexApp(vm: PokemonViewModel = viewModel()) {
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                     Text(state.selectedType?.let { "Tipo: ${typeName(it)}" } ?: "Pokédex", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold, color = Ink)
                     Spacer(Modifier.weight(1f))
-                    Text("${displayedPokemon.size} resultados", style = MaterialTheme.typography.labelMedium, color = Color.Gray)
+                    Text("${state.totalCount} resultados", style = MaterialTheme.typography.labelMedium, color = Color.Gray)
                 }
                 Spacer(Modifier.height(8.dp))
                 when {
@@ -125,14 +156,21 @@ fun PokedexApp(vm: PokemonViewModel = viewModel()) {
                         contentPadding = PaddingValues(bottom = 28.dp),
                         horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        items(displayedPokemon, key = { it.id }) { pokemon -> PokemonCard(pokemon) { vm.openDetail(pokemon) } }
+                        items(displayedPokemon, key = { it.id }) { pokemon -> PokemonCard(pokemon) { onOpenPokemon(pokemon) } }
                         if (state.isLoadingMore) item { Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator() } }
+                        if (state.error != null) {
+                            item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) {
+                                Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    Text(state.error!!, modifier = Modifier.weight(1f), color = PokeballRed)
+                                    TextButton(onClick = vm::loadNextPage) { Text("Reintentar") }
+                                }
+                            }
+                        }
                     }
                 }
             }
         }
     }
-    state.selectedPokemon?.let { pokemon -> PokemonDetailDialog(pokemon, state.isDetailLoading) { vm.closeDetail() } }
 }
 
 @Composable
@@ -198,63 +236,140 @@ private fun ErrorPanel(message: String, onRetry: () -> Unit) {
 }
 
 @Composable
-private fun PokemonDetailDialog(pokemon: Pokemon, loadingSpecies: Boolean, onClose: () -> Unit) {
-    val tint = TypeColors[pokemon.types.firstOrNull()] ?: Color(0xFFB7C4D8)
-    AlertDialog(
-        onDismissRequest = onClose,
-        confirmButton = { TextButton(onClick = onClose) { Text("Cerrar", color = PokeballRed) } },
-        title = { Text("${pokemon.name.replaceFirstChar { it.titlecase(Locale.ROOT) }}  #${pokemon.id.toString().padStart(3, '0')}", fontWeight = FontWeight.ExtraBold, color = Ink) },
-        text = {
-            Column(Modifier.heightIn(max = 520.dp).verticalScroll(rememberScrollState()), horizontalAlignment = Alignment.CenterHorizontally) {
-                Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(tint.copy(alpha = .18f)), contentAlignment = Alignment.Center) {
-                    AsyncImage(model = pokemon.imageUrl, contentDescription = pokemon.name, modifier = Modifier.size(190.dp).padding(8.dp))
-                }
-                Spacer(Modifier.height(12.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    pokemon.types.forEach { Surface(color = (TypeColors[it] ?: Color.Gray).copy(alpha = .18f), shape = RoundedCornerShape(8.dp)) { Text(typeName(it), Modifier.padding(horizontal = 9.dp, vertical = 5.dp), fontWeight = FontWeight.Bold) } }
-                }
-                Spacer(Modifier.height(12.dp))
-                Text("Descripción", modifier = Modifier.fillMaxWidth(), fontWeight = FontWeight.Bold, color = Ink)
+private fun PokemonDetailScreen(
+    pokemon: Pokemon?,
+    isLoading: Boolean,
+    error: String?,
+    isOnline: Boolean,
+    onBack: () -> Unit,
+    onRetry: () -> Unit
+) {
+    Column(Modifier.fillMaxSize().background(SoftBackground)) {
+        Row(
+            Modifier.fillMaxWidth().statusBarsPadding().background(PokeballRed).padding(end = 16.dp, top = 8.dp, bottom = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = onBack) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Volver", tint = Color.White)
+            }
+            Column(Modifier.weight(1f)) {
                 Text(
-                    pokemon.description ?: if (loadingSpecies) "Cargando descripción…" else "Descripción en español no disponible.",
-                    modifier = Modifier.fillMaxWidth(),
-                    color = Color.DarkGray
+                    pokemon?.name?.replaceFirstChar { it.titlecase(Locale.ROOT) } ?: "Detalle del Pokémon",
+                    color = Color.White,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.ExtraBold
                 )
-                Spacer(Modifier.height(12.dp))
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                    DetailMetric("Altura", "${pokemon.height / 10.0} m")
-                    DetailMetric("Peso", "${pokemon.weight / 10.0} kg")
-                }
-                Spacer(Modifier.height(14.dp))
-                Text("Habilidades", modifier = Modifier.fillMaxWidth(), fontWeight = FontWeight.Bold, color = Ink)
-                Text(pokemon.abilities.joinToString { it.replaceFirstChar { c -> c.titlecase(Locale.ROOT) } }, modifier = Modifier.fillMaxWidth(), color = Color.DarkGray)
-                Spacer(Modifier.height(12.dp))
-                Text("Estadísticas base", modifier = Modifier.fillMaxWidth(), fontWeight = FontWeight.Bold, color = Ink)
-                pokemon.stats.forEach { stat ->
-                    Column(Modifier.fillMaxWidth().padding(top = 7.dp)) {
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text(statName(stat.name), style = MaterialTheme.typography.bodySmall)
-                            Text(stat.value.toString(), style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
+                Text("Información completa", color = Color.White.copy(alpha = .88f), style = MaterialTheme.typography.bodySmall)
+            }
+            Icon(
+                if (isOnline) Icons.Default.Wifi else Icons.Default.WifiOff,
+                contentDescription = if (isOnline) "En línea" else "Sin conexión",
+                tint = Color.White
+            )
+            Spacer(Modifier.width(8.dp))
+            Text(if (isOnline) "En línea" else "Sin conexión", color = Color.White, style = MaterialTheme.typography.labelSmall)
+            Spacer(Modifier.width(8.dp))
+        }
+
+        when {
+            pokemon == null && isLoading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(color = PokeballRed)
+            }
+            pokemon == null && error != null -> ErrorPanel(error, onRetry)
+            pokemon == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text("No hay información para mostrar.", color = Color.Gray)
+            }
+            else -> {
+                val details = requireNotNull(pokemon)
+                Column(
+                    Modifier.fillMaxSize().verticalScroll(rememberScrollState()).navigationBarsPadding().padding(horizontal = 18.dp, vertical = 16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    val tint = TypeColors[details.types.firstOrNull()] ?: Color(0xFFB7C4D8)
+                    Card(shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = tint.copy(alpha = .16f))) {
+                        AsyncImage(
+                            model = details.imageUrl,
+                            contentDescription = details.name,
+                            modifier = Modifier.fillMaxWidth().height(240.dp).padding(12.dp)
+                        )
+                    }
+                    Spacer(Modifier.height(12.dp))
+                    Text("N.º ${details.id.toString().padStart(3, '0')}", color = Color.Gray, style = MaterialTheme.typography.labelLarge)
+                    Text(details.name.replaceFirstChar { it.titlecase(Locale.ROOT) }, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.ExtraBold, color = Ink)
+                    Spacer(Modifier.height(10.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        details.types.forEach { type ->
+                            Surface(color = (TypeColors[type] ?: Color.Gray).copy(alpha = .18f), shape = RoundedCornerShape(10.dp)) {
+                                Text(typeName(type), Modifier.padding(horizontal = 12.dp, vertical = 7.dp), fontWeight = FontWeight.Bold)
+                            }
                         }
-                        LinearProgressIndicator(progress = { (stat.value / 180f).coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth().height(6.dp).clip(CircleShape), color = PokeballRed, trackColor = Color.LightGray.copy(alpha = .35f))
+                    }
+                    Spacer(Modifier.height(18.dp))
+
+                    DetailSection(title = "Descripción") {
+                        Text(details.description ?: if (isLoading) "Cargando descripción…" else "Descripción en español no disponible.", color = Color.DarkGray)
+                    }
+                    Spacer(Modifier.height(12.dp))
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        DetailSection("Altura", Modifier.weight(1f)) {
+                            Text("${details.height / 10.0} m", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold, color = Ink)
+                        }
+                        DetailSection("Peso", Modifier.weight(1f)) {
+                            Text("${details.weight / 10.0} kg", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold, color = Ink)
+                        }
+                    }
+                    Spacer(Modifier.height(12.dp))
+                    DetailSection(title = "Habilidades") {
+                        Text(details.abilities.joinToString { it.replaceFirstChar { c -> c.titlecase(Locale.ROOT) } }, color = Color.DarkGray)
+                    }
+                    Spacer(Modifier.height(12.dp))
+                    DetailSection(title = "Estadísticas base") {
+                        details.stats.forEach { stat ->
+                            Column(Modifier.fillMaxWidth().padding(vertical = 5.dp)) {
+                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                    Text(statName(stat.name), style = MaterialTheme.typography.bodyMedium, color = Ink)
+                                    Text(stat.value.toString(), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, color = Ink)
+                                }
+                                LinearProgressIndicator(
+                                    progress = { (stat.value / 180f).coerceIn(0f, 1f) },
+                                    modifier = Modifier.fillMaxWidth().height(7.dp).clip(CircleShape),
+                                    color = PokeballRed,
+                                    trackColor = Color.LightGray.copy(alpha = .35f)
+                                )
+                            }
+                        }
+                    }
+                    if (details.isLegendary || details.isMythical) {
+                        Spacer(Modifier.height(12.dp))
+                        Text(
+                            if (details.isLegendary) "Pokémon legendario ✨" else "Pokémon mítico ✨",
+                            color = PokeballRed,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    if (error != null) {
+                        Row(Modifier.fillMaxWidth().padding(top = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Text(error, modifier = Modifier.weight(1f), color = PokeballRed)
+                            TextButton(onClick = onRetry) { Text("Reintentar") }
+                        }
+                    }
+                    if (isLoading) {
+                        Spacer(Modifier.height(16.dp))
+                        CircularProgressIndicator(color = PokeballRed, modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
                     }
                 }
-                Spacer(Modifier.height(12.dp))
-                when {
-                    loadingSpecies -> CircularProgressIndicator(modifier = Modifier.size(22.dp), strokeWidth = 2.dp)
-                    pokemon.isLegendary -> Text("Pokémon legendario ✨", color = PokeballRed, fontWeight = FontWeight.Bold)
-                    pokemon.isMythical -> Text("Pokémon mítico ✨", color = PokeballRed, fontWeight = FontWeight.Bold)
-                }
             }
-        },
-        containerColor = Color.White
-    )
+        }
+    }
 }
 
 @Composable
-private fun DetailMetric(label: String, value: String) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(value, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold, color = Ink)
-        Text(label, style = MaterialTheme.typography.labelMedium, color = Color.Gray)
+private fun DetailSection(title: String, modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
+    Card(modifier = modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = Ink)
+            content()
+        }
     }
 }
+

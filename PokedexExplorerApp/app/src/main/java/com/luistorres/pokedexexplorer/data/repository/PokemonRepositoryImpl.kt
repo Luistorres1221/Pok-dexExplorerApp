@@ -17,7 +17,7 @@ class PokemonRepositoryImpl(private val api: PokeApiService) : PokemonRepository
         val pokemon = coroutineScope {
             response.results.map { item -> async { mapPokemon(api.getPokemon(item.name)) } }.awaitAll()
         }
-        return PokemonPage(pokemon, response.next != null)
+        return PokemonPage(pokemon, response.next != null, response.count)
     }
 
     override suspend fun getPokemonByNameOrId(query: String): Pokemon {
@@ -46,12 +46,19 @@ class PokemonRepositoryImpl(private val api: PokeApiService) : PokemonRepository
         }.awaitAll()
     }
 
-    override suspend fun getPokemonByType(type: String, limit: Int): List<Pokemon> {
+    override suspend fun getPokemonByType(type: String, offset: Int, limit: Int): PokemonPage {
         val response = api.getPokemonByType(type.lowercase())
+        val totalCount = response.pokemon.size
+        val pageEntries = response.pokemon.drop(offset).take(limit)
         return coroutineScope {
-            response.pokemon.take(limit).map { entry ->
+            val pokemon = pageEntries.map { entry ->
                 async { mapPokemon(api.getPokemon(entry.pokemon.name)) }
             }.awaitAll()
+            PokemonPage(
+                items = pokemon,
+                hasNext = offset + pageEntries.size < totalCount,
+                totalCount = totalCount
+            )
         }
     }
 

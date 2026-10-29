@@ -24,8 +24,11 @@ import kotlinx.coroutines.launch
     val isOnline: Boolean = true,
     val hasNext: Boolean = true,
     val offset: Int = 0,
+    val totalCount: Int = 0,
     val selectedPokemon: Pokemon? = null,
-    val isDetailLoading: Boolean = false
+    val isDetailLoading: Boolean = false,
+    val detailError: String? = null,
+    val detailLoaded: Boolean = false
 )
 
 class PokemonViewModel(application: Application) : AndroidViewModel(application) {
@@ -33,6 +36,7 @@ class PokemonViewModel(application: Application) : AndroidViewModel(application)
     private val connectivity = ConnectivityObserver(application)
     private val _uiState = MutableStateFlow(PokemonUiState())
     val uiState: StateFlow<PokemonUiState> = _uiState.asStateFlow()
+    private var resultsRequestVersion = 0
 
     init {
         viewModelScope.launch {
@@ -42,70 +46,87 @@ class PokemonViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun loadFirstPage() {
+        val requestVersion = ++resultsRequestVersion
         viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isLoading = true, error = null, offset = 0, hasNext = true, selectedType = null)
+            _uiState.value = _uiState.value.copy(isLoading = true, isLoadingMore = false, error = null, offset = 0, totalCount = 0, hasNext = true, selectedType = null)
             try {
                 val page = repository.getPokemonPage(0)
-                _uiState.value = _uiState.value.copy(pokemon = page.items, isLoading = false, offset = page.items.size, hasNext = page.hasNext)
+                if (requestVersion == resultsRequestVersion) _uiState.value = _uiState.value.copy(pokemon = page.items, isLoading = false, offset = page.items.size, hasNext = page.hasNext, totalCount = page.totalCount)
             } catch (e: Exception) {
-                _uiState.value = _uiState.value.copy(isLoading = false, error = messageFor(e))
+                if (requestVersion == resultsRequestVersion) _uiState.value = _uiState.value.copy(isLoading = false, error = messageFor(e))
             }
         }
     }
 
     fun loadNextPage() {
         val state = _uiState.value
-        if (state.isLoading || state.isLoadingMore || !state.hasNext || state.selectedType != null || state.searchText.isNotBlank()) return
+        if (state.isLoading || state.isLoadingMore || !state.hasNext || state.searchText.isNotBlank()) return
+        val requestVersion = resultsRequestVersion
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoadingMore = true, error = null)
             try {
-                val page = repository.getPokemonPage(_uiState.value.offset)
+                val currentState = _uiState.value
+                val page = currentState.selectedType?.let { repository.getPokemonByType(it, currentState.offset) }
+                    ?: repository.getPokemonPage(currentState.offset)
+                if (requestVersion != resultsRequestVersion) return@launch
                 val current = _uiState.value.pokemon
-                _uiState.value = _uiState.value.copy(pokemon = current + page.items, offset = current.size + page.items.size, hasNext = page.hasNext, isLoadingMore = false)
+                _uiState.value = _uiState.value.copy(pokemon = current + page.items, offset = currentState.offset + page.items.size, hasNext = page.hasNext, totalCount = page.totalCount, isLoadingMore = false)
             } catch (e: Exception) {
-                _uiState.value = _uiState.value.copy(isLoadingMore = false, error = messageFor(e))
+                if (requestVersion == resultsRequestVersion) _uiState.value = _uiState.value.copy(isLoadingMore = false, error = messageFor(e))
             }
         }
     }
 
     fun onSearchChange(value: String) {
-        _uiState.value = _uiState.value.copy(searchText = value, selectedType = null, error = null)
+        val previous = _uiState.value
+        _uiState.value = previous.copy(searchText = value, selectedType = null, error = null)
+        if (previous.selectedType != null || (value.isBlank() && !previous.hasNext)) loadFirstPage()
     }
 
     fun searchExact() {
         val query = _uiState.value.searchText.trim()
         if (query.isEmpty()) { loadFirstPage(); return }
+        val requestVersion = ++resultsRequestVersion
         viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isLoading = true, error = null, selectedType = null)
+            _uiState.value = _uiState.value.copy(isLoading = true, isLoadingMore = false, totalCount = 0, error = null, selectedType = null)
             try {
                 val pokemon = repository.getPokemonByNameOrId(query)
-                _uiState.value = _uiState.value.copy(pokemon = listOf(pokemon), isLoading = false, hasNext = false)
+                if (requestVersion == resultsRequestVersion) _uiState.value = _uiState.value.copy(pokemon = listOf(pokemon), isLoading = false, hasNext = false, totalCount = 1)
             } catch (e: Exception) {
-                _uiState.value = _uiState.value.copy(isLoading = false, pokemon = emptyList(), error = "No se encontró ese Pokémon. Comprueba el nombre o número.")
+                _uiState.value = _uiState.value.copy(isLoading = false, pokemon = emptyList(), hasNext = false, error = "No se encontró ese Pokémon. Comprueba el nombre o número.")
             }
         }
     }
 
     fun filterByType(type: String?) {
-        if (type == null) { loadFirstPage(); _uiState.value = _uiState.value.copy(searchText = ""); return }
+        if (type == null) { _uiState.value = _uiState.value.copy(searchText = ""); loadFirstPage(); return }
+        val requestVersion = ++resultsRequestVersion
         viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isLoading = true, error = null, selectedType = type, searchText = "")
+            _uiState.value = _uiState.value.copy(isLoading = true, isLoadingMore = false, error = null, selectedType = type, searchText = "", offset = 0, totalCount = 0)
             try {
-                val items = repository.getPokemonByType(type)
-                _uiState.value = _uiState.value.copy(pokemon = items, isLoading = false, hasNext = false)
+                val page = repository.getPokemonByType(type, 0)
+                if (requestVersion == resultsRequestVersion) _uiState.value = _uiState.value.copy(pokemon = page.items, isLoading = false, offset = page.items.size, hasNext = page.hasNext, totalCount = page.totalCount)
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(isLoading = false, pokemon = emptyList(), error = "No fue posible cargar el tipo seleccionado.")
             }
         }
     }
 
-    fun openDetail(pokemon: Pokemon) {
+    fun loadPokemonDetail(id: Int, retry: Boolean = false) {
+        val current = _uiState.value
+        if (!retry && current.selectedPokemon?.id == id && current.detailLoaded) return
         viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isDetailLoading = true, selectedPokemon = pokemon)
+            val initial = _uiState.value.pokemon.firstOrNull { it.id == id }
+            _uiState.value = _uiState.value.copy(
+                isDetailLoading = true,
+                detailError = null,
+                detailLoaded = false,
+                selectedPokemon = initial
+            )
             try {
-                val species = repository.getPokemonSpeciesDetails(pokemon.id)
-                val abilities = runCatching { repository.getPokemonAbilityNamesInSpanish(pokemon.abilities) }
-                    .getOrDefault(pokemon.abilities)
+                val pokemon = repository.getPokemonByNameOrId(id.toString())
+                val species = repository.getPokemonSpeciesDetails(id)
+                val abilities = repository.getPokemonAbilityNamesInSpanish(pokemon.abilities)
                 _uiState.value = _uiState.value.copy(
                     selectedPokemon = pokemon.copy(
                         isLegendary = species.isLegendary,
@@ -113,15 +134,17 @@ class PokemonViewModel(application: Application) : AndroidViewModel(application)
                         abilities = abilities,
                         description = species.description
                     ),
-                    isDetailLoading = false
+                    isDetailLoading = false,
+                    detailLoaded = true
                 )
             } catch (_: Exception) {
-                _uiState.value = _uiState.value.copy(isDetailLoading = false)
+                _uiState.value = _uiState.value.copy(
+                    isDetailLoading = false,
+                    detailError = "No se pudo cargar el detalle. Revisa tu conexión e inténtalo de nuevo."
+                )
             }
         }
     }
-
-    fun closeDetail() { _uiState.value = _uiState.value.copy(selectedPokemon = null, isDetailLoading = false) }
 
     private fun messageFor(e: Exception): String = when (e) {
         is java.net.UnknownHostException -> "Sin conexión a Internet. Revisa tu red e inténtalo de nuevo."
